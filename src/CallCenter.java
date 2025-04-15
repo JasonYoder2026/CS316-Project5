@@ -109,6 +109,8 @@ public class CallCenter {
                 e.printStackTrace();
             }
         }
+
+        es.shutdown();
     }
 
 }
