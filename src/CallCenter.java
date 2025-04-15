@@ -1,11 +1,19 @@
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.concurrent.ExecutorService;
 import static java.lang.Thread.sleep;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
+
 
 public class CallCenter {
     private static final int CUSTOMERS_PER_AGENT = 5;
     private static final int NUMBER_OF_AGENTS = 3;
     private static final int NUMBER_OF_CUSTOMERS = NUMBER_OF_AGENTS * CUSTOMERS_PER_AGENT;
     private static final int NUMBER_OF_THREADS = 10;
+
+    private static Queue<Customer> waitQueue = new LinkedList<>();
+    private static Queue<Customer> serveQueue = new LinkedList<>();
 
     public static class Agent implements Runnable {
     //TODO: complete the agent class
@@ -28,7 +36,10 @@ public class CallCenter {
         }
 
         public void run() {
-
+            for(int i = 0; i < CUSTOMERS_PER_AGENT; i++){
+                Customer customer = serveQueue.poll();
+                serve(customer.getId());
+            }
         }
     }
 
@@ -48,7 +59,12 @@ public class CallCenter {
             }
         }
         public void run() {
-
+            for (int i = 1; i <= NUMBER_OF_CUSTOMERS; i++){
+                Customer customer = waitQueue.poll();
+                greet(customer.getId());
+                serveQueue.add(customer);
+                System.out.println("Customer " + customer.getId() + " is number " + serveQueue.size() + " in the serve queue");
+            }
         }
     }
 
@@ -57,13 +73,19 @@ public class CallCenter {
      */
     public static class Customer implements Runnable {
     //TODO: complete the Customer class
-        private final int ID;
+        private int ID;
+        private static int counter = 0;
 
-        public Customer (int i){
-            ID = i;
+        public Customer (){
+            this.ID = counter++;
         }
-        public void run() {
 
+        public int getId() {
+            return this.ID;
+        }
+
+        public void run() {
+            waitQueue.add(this);
         }
     }
 
@@ -73,6 +95,20 @@ public class CallCenter {
      */
     public static void main(String[] args){
     //TODO: complete the main method
+        ExecutorService es = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+
+        es.submit(new Greeter());
+        for (int i = 0; i < NUMBER_OF_AGENTS; i++) {
+            es.submit(new Agent(i));
+        }
+        for (int i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
+            es.submit(new Customer());
+            try {
+                sleep(ThreadLocalRandom.current().nextInt(10, 1000));
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
 }
