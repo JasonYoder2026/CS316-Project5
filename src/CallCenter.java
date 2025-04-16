@@ -4,6 +4,8 @@ import java.util.concurrent.ExecutorService;
 import static java.lang.Thread.sleep;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 public class CallCenter {
@@ -12,69 +14,90 @@ public class CallCenter {
     private static final int NUMBER_OF_CUSTOMERS = NUMBER_OF_AGENTS * CUSTOMERS_PER_AGENT;
     private static final int NUMBER_OF_THREADS = 10;
 
-    private static Queue<Customer> waitQueue = new LinkedList<>();
-    private static Queue<Customer> serveQueue = new LinkedList<>();
+    private static final Queue<Customer> waitQueue = new LinkedList<>();
+    private static final Queue<Customer> serveQueue = new LinkedList<>();
+    //2 queues, one lock snd signal for each
+    private final static ReentrantLock waitQueueLock = new ReentrantLock();
+    private final static ReentrantLock serveQueueLock = new ReentrantLock();
+
+    private final static Condition waitQueueNotEmpty = waitQueueLock.newCondition();
+    private final static Condition serveQueueNotEmpty = serveQueueLock.newCondition();
 
     public static class Agent implements Runnable {
-    //TODO: complete the agent class
         private final int ID;
 
         public Agent(int i) {
             ID = i;
         }
-        /*
-        Your implementation must call the method below to serve each customer.
-        Do not modify this method.
-         */
+
         public void serve(int customerID) {
             System.out.println("Agent " + ID + " is serving customer " + customerID);
             try {
                 sleep(ThreadLocalRandom.current().nextInt(10, 1000));
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                System.err.println(e.getMessage());
             }
         }
 
         public void run() {
             for(int i = 0; i < CUSTOMERS_PER_AGENT; i++){
-                Customer customer = serveQueue.poll();
-                serve(customer.getId());
+                serveQueueLock.lock();
+                try {
+                    while (serveQueue.isEmpty()) {
+                        serveQueueNotEmpty.await();
+                    }
+                    Customer customer = serveQueue.remove();
+                    serve(customer.getId());
+                } catch (InterruptedException e) {
+                    System.err.println(e.getMessage());
+                } finally {
+                    serveQueueLock.unlock();
+                }
             }
         }
     }
 
     public static class Greeter implements Runnable{
-    //TODO: complete the Greeter class
 
-        /*
-        Your implementation must call the method below to serve each customer.
-        Do not modify this method.
-         */
         public void greet(int customerID) {
             System.out.println("Greeting customer " + customerID);
                 try {
                     sleep(ThreadLocalRandom.current().nextInt(10, 1000));
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    System.err.println(e.getMessage());
             }
         }
         public void run() {
             for (int i = 1; i <= NUMBER_OF_CUSTOMERS; i++){
-                Customer customer = waitQueue.poll();
-                greet(customer.getId());
-                serveQueue.add(customer);
-                System.out.println("Customer " + customer.getId() + " is number " + serveQueue.size() + " in the serve queue");
+                waitQueueLock.lock();
+                try {
+                    while (waitQueue.isEmpty()) {
+                        waitQueueNotEmpty.await();
+                    }
+                    Customer customer = waitQueue.remove();
+                    greet(customer.getId());
+
+                    serveQueueLock.lock();
+                    try {
+                        serveQueue.add(customer);
+                        serveQueueNotEmpty.signal();
+                        System.out.println("Customer " + customer.getId() + " is number " + serveQueue.size() + " in the serve queue");
+                    } finally {
+                        serveQueueLock.unlock();
+                    }
+                } catch (InterruptedException e) {
+                    System.err.println(e.getMessage());
+                } finally {
+                    waitQueueLock.unlock();
+                }
             }
         }
     }
 
-    /*
-        The customer class.
-     */
+
     public static class Customer implements Runnable {
-    //TODO: complete the Customer class
-        private int ID;
-        private static int counter = 0;
+        private final int ID;
+        private static int counter = 1;
 
         public Customer (){
             this.ID = counter++;
@@ -85,28 +108,31 @@ public class CallCenter {
         }
 
         public void run() {
-            waitQueue.add(this);
+            waitQueueLock.lock();
+            try {
+                waitQueue.add(this);
+                waitQueueNotEmpty.signal();
+            } finally {
+                waitQueueLock.unlock();
+            }
         }
     }
 
-    /*
-        Create the greeter and agents tasks first, and then create the customer tasks.
-        to simulate a random interval between customer calls, sleep for a random period after creating each customer task.
-     */
     public static void main(String[] args){
-    //TODO: complete the main method
         ExecutorService es = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
 
         es.submit(new Greeter());
-        for (int i = 0; i < NUMBER_OF_AGENTS; i++) {
+
+        for (int i = 1; i <= NUMBER_OF_AGENTS; i++) {
             es.submit(new Agent(i));
         }
-        for (int i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
+
+        for (int i = 1; i <= NUMBER_OF_CUSTOMERS; i++) {
             es.submit(new Customer());
             try {
                 sleep(ThreadLocalRandom.current().nextInt(10, 1000));
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                System.err.println(e.getMessage());
             }
         }
 
