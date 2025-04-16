@@ -97,10 +97,9 @@ public class CallCenter {
 
     public static class Customer implements Runnable {
         private final int ID;
-        private static int counter = 1;
 
-        public Customer (){
-            this.ID = counter++;
+        public Customer (int i){
+            this.ID = i;
         }
 
         public int getId() {
@@ -128,7 +127,7 @@ public class CallCenter {
         }
 
         for (int i = 1; i <= NUMBER_OF_CUSTOMERS; i++) {
-            es.submit(new Customer());
+            es.submit(new Customer(i));
             try {
                 sleep(ThreadLocalRandom.current().nextInt(10, 1000));
             } catch (InterruptedException e) {
