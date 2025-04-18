@@ -69,26 +69,28 @@ public class CallCenter {
         }
         public void run() {
             for (int i = 1; i <= NUMBER_OF_CUSTOMERS; i++){
+                Customer customer = null;
                 waitQueueLock.lock();
                 try {
                     while (waitQueue.isEmpty()) {
                         waitQueueNotEmpty.await();
                     }
-                    Customer customer = waitQueue.remove();
+                    customer = waitQueue.remove();
                     greet(customer.getId());
 
-                    serveQueueLock.lock();
-                    try {
-                        serveQueue.add(customer);
-                        serveQueueNotEmpty.signal();
-                        System.out.println("Customer " + customer.getId() + " is number " + serveQueue.size() + " in the serve queue");
-                    } finally {
-                        serveQueueLock.unlock();
-                    }
                 } catch (InterruptedException e) {
                     System.err.println(e.getMessage());
                 } finally {
                     waitQueueLock.unlock();
+                }
+
+                serveQueueLock.lock();
+                try {
+                    serveQueue.add(customer);
+                    serveQueueNotEmpty.signal();
+                    System.out.println("Customer " + customer.getId() + " is number " + serveQueue.size() + " in the serve queue");
+                } finally {
+                    serveQueueLock.unlock();
                 }
             }
         }
@@ -129,7 +131,7 @@ public class CallCenter {
         for (int i = 1; i <= NUMBER_OF_CUSTOMERS; i++) {
             es.submit(new Customer(i));
             try {
-                sleep(ThreadLocalRandom.current().nextInt(10, 1000));
+                sleep(ThreadLocalRandom.current().nextInt(10, 100));
             } catch (InterruptedException e) {
                 System.err.println(e.getMessage());
             }
